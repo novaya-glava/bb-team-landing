@@ -1,0 +1,84 @@
+name: Mirror main to SourceCraft
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sourcecraft-main
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Sync the SourceCraft main branch
+        shell: bash
+        env:
+          MIRROR_GITHUB_TOKEN: ${{ github.token }}
+          SOURCECRAFT_MIRROR_TOKEN: ${{ secrets.SOURCECRAFT_MIRROR_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$SOURCECRAFT_MIRROR_TOKEN" ]]; then
+            echo "::error::Set the SOURCECRAFT_MIRROR_TOKEN repository secret."
+            exit 1
+          fi
+
+          work=$(mktemp -d "$RUNNER_TEMP/sourcecraft-mirror.XXXXXX")
+          trap 'rm -rf "$work"' EXIT
+          export GIT_ASKPASS="$work/askpass" GIT_TERMINAL_PROMPT=0 LC_ALL=C
+          cat > "$GIT_ASKPASS" <<'ASKPASS'
+          #!/usr/bin/env bash
+          case "$1" in
+            "Password for 'https://x-access-token@github.com': "*) printf '%s\n' "$MIRROR_GITHUB_TOKEN" ;;
+            "Password for 'https://git@git.sourcecraft.dev': "*) printf '%s\n' "$SOURCECRAFT_MIRROR_TOKEN" ;;
+            *) exit 1 ;;
+          esac
+          ASKPASS
+          chmod 700 "$GIT_ASKPASS"
+
+          git init --quiet "$work/repo"
+          cd "$work/repo"
+          source_url="https://x-access-token@github.com/$GITHUB_REPOSITORY.git"
+          target_url="https://git@git.sourcecraft.dev/yana-shvedovskaya/bb-team-landing.git"
+
+          git fetch --no-tags "$source_url" refs/heads/main
+          source=$(git rev-parse FETCH_HEAD)
+          git fetch --no-tags "$target_url" refs/heads/main
+          target=$(git rev-parse FETCH_HEAD)
+
+          if [[ "$(git rev-parse "$source^{tree}")" == "$(git rev-parse "$target^{tree}")" ]]; then
+            echo "SourceCraft already has the GitHub main contents."
+            exit 0
+          fi
+
+          if git merge-base --is-ancestor "$target" "$source"; then
+            next="$source"
+          else
+            baseline=1f742fea19a08cb9d89f5d94de1ce097ccf69fe4
+            message="Mirror GitHub main to SourceCraft"
+            # Preserve the existing SourceCraft history and publish the exact GitHub tree.
+            if [[ "$target" != "$baseline" ]]; then
+              previous_source=$(git rev-parse --verify "$target^2" 2>/dev/null || true)
+              if [[ -z "$previous_source" || "$(git log -1 --format=%s "$target")" != "$message" ]] ||
+                 ! git merge-base --is-ancestor "$baseline" "$target" ||
+                 ! git merge-base --is-ancestor "$previous_source" "$source" ||
+                 [[ "$(git rev-parse "$previous_source^{tree}")" != "$(git rev-parse "$target^{tree}")" ]]; then
+                echo "::error::SourceCraft main changed independently; reconcile the two branches before syncing."
+                exit 1
+              fi
+            fi
+            git config user.name "GitHub Actions"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            next=$(git commit-tree "$source^{tree}" -p "$target" -p "$source" -m "$message")
+          fi
+
+          git push "$target_url" "$next:refs/heads/main"
+          echo "SourceCraft main now contains GitHub main $source."
