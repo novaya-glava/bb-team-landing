@@ -5,8 +5,9 @@ self.addEventListener('message', async ({ data }) => {
   const { id, kind } = data;
   try {
     if (kind === 'load') {
-      const { CreateMLCEngine } = await import('https://esm.run/@mlc-ai/web-llm@0.2.89');
+      const { CreateMLCEngine, prebuiltAppConfig } = await import('https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.89/lib/index.js');
       engine = await CreateMLCEngine(model, {
+        appConfig: { ...prebuiltAppConfig, cacheBackend: 'indexeddb' },
         initProgressCallback: ({ progress }) => self.postMessage({ id, progress })
       });
       self.postMessage({ id });
