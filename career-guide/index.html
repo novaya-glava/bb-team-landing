@@ -1700,7 +1700,7 @@ document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('clo
       let worker;
       try {
         report('Подготавливаем модель…');
-        worker = new Worker(new URL('career-model-worker.js', document.baseURI), { type: 'module' });
+        worker = new Worker(new URL('career-model-worker.js?v=2', document.baseURI), { type: 'module' });
         const loading = AbortSignal.any([request.signal, AbortSignal.timeout(300000)]);
         await requestWorker(worker, 'load', {}, loading, progress =>
           report('Загрузка модели · ' + Math.floor(Math.min(1, Math.max(0, progress)) * 100) + '%'));
