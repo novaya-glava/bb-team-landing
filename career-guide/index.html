@@ -1443,9 +1443,10 @@ document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('clo
   </div>
   <div class="offer-body">
     <form id="resume-form" class="resume-fields">
-      <label class="auth-field">Желаемая должность<input name="role" maxlength="160" required placeholder="Например, младший аналитик"></label>
+      <label class="auth-field">Желаемая должность<input name="role" list="resume-role-options" autocomplete="off" maxlength="160" required placeholder="Например, младший аналитик"></label>
       <label class="auth-field">Опыт, проекты и образование<textarea name="experience" rows="4" maxlength="2400" required placeholder="Что вы сделали, какими инструментами пользовались и какой результат получили"></textarea></label>
       <label class="auth-field">Навыки<textarea name="skills" rows="2" maxlength="600" placeholder="Например, Excel, SQL, визуализация данных"></textarea></label>
+      <datalist id="resume-role-options"></datalist>
       <div class="resume-actions">
         <button class="primary" type="submit">Сгенерировать с ИИ</button>
         <button class="ai-button" type="submit" id="resume-template" hidden>Собрать по шаблону</button>
@@ -1786,6 +1787,20 @@ document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('clo
     messages.scrollTop = messages.scrollHeight;
   }
 
+  function quickCareerReply(question) {
+    const q = question.toLowerCase().replace(/ё/g, 'е');
+    if (/суицид|самоубий|покончить с собой|навредить себе/.test(q)) return safeReplies.crisis;
+    if (/парол|паспорт|снилс|банковск|персональн.*данн/.test(q)) return safeReplies.privacy;
+    if (/выдум|поддел|соврать|обмануть/.test(q)) return safeReplies.integrity;
+    if (/резюме|cv|ats|атс/.test(q)) return 'Укажите желаемую должность, подходящие навыки и реальные проекты. Для каждой задачи опишите свой вклад и подтверждаемый результат; сравните формулировки с вакансией и добавьте только те навыки, которыми действительно владеете.';
+    if (/собесед|интервью/.test(q)) return 'Подготовьте короткий рассказ о себе и два примера из работы или учёбы: задача, ваши действия и результат. Изучите вакансию и заранее продумайте вопросы о задачах и команде.';
+    if (/зарплат|оклад|оплат/.test(q)) return 'Сравните предложения по похожим должностям и региону, затем определите комфортный диапазон. Обсудите с работодателем обязанности, условия и полную структуру вознаграждения до принятия решения.';
+    if (/увольн|договор|прав[ао]|трудов|работодатель|руководител|конфликт/.test(q)) return 'Запишите факты ситуации и проверьте условия трудового договора и официальные правила. Сохраните рабочую переписку; если вопрос касается ваших прав, обратитесь за консультацией в трудовую инспекцию или к юристу.';
+    if (/опыт|навык|проект|обуч|професси|специальност/.test(q)) return 'Выберите интересующую роль и сравните её требования со своими навыками. Выделите реальные учебные или рабочие проекты, а для недостающего навыка составьте небольшой план практики.';
+    if (/работ|вакан|карьер|отклик|поиск/.test(q)) return 'Выберите несколько подходящих вакансий и сравните их требования. Адаптируйте резюме под каждую роль, опираясь на реальные навыки и проекты, и отслеживайте отклики.';
+    return 'Я могу помочь с поиском работы, резюме, собеседованием и адаптацией. Уточните карьерную тему и опишите ситуацию без личных данных.';
+  }
+
   form.addEventListener('submit', async event => {
     event.preventDefault();
     const question = input.value.trim();
@@ -1798,8 +1813,8 @@ document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('clo
 
     try {
       const model = globalThis.LanguageModel;
-      if (!model || await model.availability() === 'unavailable') {
-        if (!request.signal.aborted) status.textContent = 'На этом устройстве модель Chrome недоступна. Короткую консультацию можно открыть на главной странице.';
+      if (!model || await model.availability() !== 'available') {
+        if (!request.signal.aborted) { appendReply(quickCareerReply(question)); status.textContent = 'Быстрая подсказка по теме; модель ИИ на этом устройстве не загружена.'; }
         return;
       }
       if (request.signal.aborted) return;
@@ -1809,7 +1824,7 @@ document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('clo
       appendReply(reply);
       status.textContent = '';
     } catch {
-      if (!request.signal.aborted) status.textContent = 'Модель Chrome не подготовила ответ. Попробуйте отправить вопрос ещё раз.';
+      if (!request.signal.aborted) { appendReply(quickCareerReply(question)); status.textContent = 'Быстрая подсказка по теме: модель ИИ не смогла ответить.'; }
     } finally {
       if (activeRequest === request) {
         activeRequest = undefined;
@@ -1826,6 +1841,43 @@ document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('clo
     status.textContent = '';
     messages.replaceChildren(intro);
   });
+})();
+</script>
+<style>
+.resume-suggestions{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}.resume-suggestions:empty{display:none}.resume-suggestions button{border:1px solid #9a8cad;border-radius:16px;background:#f1eef8;color:#29243c;padding:7px 11px;font:inherit;cursor:pointer}[data-theme="dark"] .resume-suggestions button{background:#30264b;color:#faf5ff;border-color:#a99cbe}
+</style>
+<script>
+(() => {
+  const form = document.getElementById('resume-form');
+  const roles = ['Экономист','Экономист-аналитик','Эколог','Электрик','Электромонтер','Электроинженер','Аналитик','Бухгалтер','Менеджер','Маркетолог','Разработчик','Дизайнер','Инженер','Юрист','Продавец-консультант','Специалист по кадрам','Администратор','Учитель','Психолог','Тестировщик'];
+  const skills = ['Анализ данных','Excel','SQL','Python','Работа с клиентами','Деловая переписка','Командная работа','Планирование','Бюджетирование','Финансовый анализ','Бухгалтерский учет','1С','Подготовка отчетов','Управление проектами','Английский язык'];
+  const experience = ['Учебный проект','Производственная практика','Стажировка','Волонтерство','Анализ данных','Подготовка отчетов','Работа с клиентами','Организация мероприятий','Работа в команде','Исследование рынка'];
+  const list = document.getElementById('resume-role-options');
+  roles.forEach(value => { const option = document.createElement('option'); option.value = value; list.append(option); });
+  for (const [name, options] of [['skills', skills], ['experience', experience]]) {
+    const field = form.elements[name];
+    const box = document.createElement('div');
+    box.className = 'resume-suggestions';
+    box.setAttribute('aria-label', 'Варианты для поля ' + (name === 'skills' ? 'навыки' : 'опыт'));
+    field.after(box);
+    function update() {
+      const before = field.value.slice(0, field.selectionStart);
+      const match = before.match(/(?:^|[,;\n])\s*([^,;\n]*)$/);
+      const term = (match?.[1] || '').trim().toLocaleLowerCase('ru').replace(/ё/g, 'е');
+      box.replaceChildren();
+      if (!term) return;
+      options.filter(x => x.toLocaleLowerCase('ru').replace(/ё/g, 'е').startsWith(term) && x.toLocaleLowerCase('ru').replace(/ё/g, 'е') !== term).slice(0, 5).forEach(value => {
+        const button = document.createElement('button'); button.type = 'button'; button.textContent = value;
+        button.addEventListener('click', () => {
+          const pos = field.selectionStart, prefix = field.value.slice(0, pos);
+          const start = prefix.length - (match?.[1] || '').length;
+          field.setRangeText(value, start, pos, 'end'); box.replaceChildren(); field.focus(); field.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        box.append(button);
+      });
+    }
+    field.addEventListener('input', update); field.addEventListener('click', update); field.addEventListener('keyup', update);
+  }
 })();
 </script>
 <script>
