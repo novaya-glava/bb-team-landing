@@ -1341,7 +1341,8 @@ document.addEventListener('click',event=>{const button=event.target.closest('dia
 preview.dispatchEvent(new CustomEvent('open-owned-profile'));}
 // A dedicated event uses the existing builder renderer by opening its preview from the complete-package path.
 function showProfile(){closeAll();builder.dispatchEvent(new Event('profile-render-start'));builder.showModal();document.body.classList.add('chat-open')}
-function purchase(event,form){if(!user())return;event.preventDefault();event.stopImmediatePropagation();const profile=form.id==='profile-offer-form';const plan=form.querySelector('input:checked')?.value||'consultant';const u=user();data[u.email]??={};const expiry=Date.now()+30*24*60*60*1000;const owned=data[u.email];owned.complete??=Math.min(Number(owned.consultant)||0,Number(owned.profile)||0);if(plan==='complete')owned.complete=expiry;if(plan==='consultant'||plan==='complete')data[u.email].consultant=expiry;if(plan==='profile'||plan==='complete')data[u.email].profile=expiry;try{localStorage.setItem(key,JSON.stringify(data))}catch{form.querySelector('[role="status"]').textContent='Не удалось сохранить демодоступ.';return}if(plan==='profile'||(profile&&plan==='complete'))showProfile();else openChat()}
+function showComplete(){closeAll();let hub=document.getElementById('complete-hub');if(!hub){hub=document.createElement('dialog');hub.id='complete-hub';hub.className='offer-dialog';hub.setAttribute('aria-labelledby','complete-hub-title');hub.innerHTML='<div class="chat-header"><div><h2 id="complete-hub-title">Полный старт</h2><p>Ваши инструменты для поиска работы</p></div><button type="button" class="chat-close" aria-label="Закрыть">×</button></div><div class="offer-body"><p>Выберите, с чего начать:</p><div class="resume-actions"><button type="button" class="primary" data-tool="chat">Карьерный консультант</button><button type="button" class="ai-button" data-tool="profile">Разбор профиля</button><button type="button" class="ai-button" data-tool="resume">Резюме и ATS</button></div><p>Разбор профиля пока работает в демонстрационном режиме.</p></div>';document.body.append(hub);hub.addEventListener('click',e=>{const tool=e.target.dataset.tool;if(tool==='chat')openChat();if(tool==='profile')showProfile();if(tool==='resume'){hub.close();document.querySelector('[data-open-resume]').click()}})}hub.showModal();document.body.classList.add('chat-open')}
+function purchase(event,form){if(!user())return;event.preventDefault();event.stopImmediatePropagation();const profile=form.id==='profile-offer-form';const plan=form.querySelector('input:checked')?.value||'consultant';const u=user();data[u.email]??={};const expiry=Date.now()+30*24*60*60*1000;const owned=data[u.email];owned.complete??=Math.min(Number(owned.consultant)||0,Number(owned.profile)||0);if(plan==='complete')owned.complete=expiry;if(plan==='consultant'||plan==='complete')data[u.email].consultant=expiry;if(plan==='profile'||plan==='complete')data[u.email].profile=expiry;try{localStorage.setItem(key,JSON.stringify(data))}catch{form.querySelector('[role="status"]').textContent='Не удалось сохранить демодоступ.';return}if(plan==='complete')showComplete();else if(plan==='profile')showProfile();else openChat()}
 document.addEventListener('submit',event=>{if(['offer-form','profile-offer-form'].includes(event.target.id))purchase(event,event.target)},true);
 document.addEventListener('click',event=>{const button=event.target.closest('button');if(!button)return;const profileEntry=button.id==='profile-header-entry'||button.id==='open-profile-builder'||button.classList.contains('profile-package-entry');const consultantEntry=button.matches('[data-open-chat],.generate-button:not([data-open-resume]),[data-adapt-offer]')||button.id==='learn-more';if(profileEntry&&active('profile')){event.preventDefault();event.stopImmediatePropagation();showProfile()}else if(consultantEntry&&active('consultant')){event.preventDefault();event.stopImmediatePropagation();openChat()}},true);
 })();</script>
@@ -1443,7 +1444,7 @@ document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('clo
   </div>
   <div class="offer-body">
     <form id="resume-form" class="resume-fields">
-      <label class="auth-field">Желаемая должность<input name="role" list="resume-role-options" autocomplete="off" maxlength="160" required placeholder="Например, младший аналитик"></label>
+      <label class="auth-field">Желаемая должность<input name="role" autocomplete="off" maxlength="160" required placeholder="Например, младший аналитик"></label>
       <label class="auth-field">Опыт, проекты и образование<textarea name="experience" rows="4" maxlength="2400" required placeholder="Что вы сделали, какими инструментами пользовались и какой результат получили"></textarea></label>
       <label class="auth-field">Навыки<textarea name="skills" rows="2" maxlength="600" placeholder="Например, Excel, SQL, визуализация данных"></textarea></label>
       <datalist id="resume-role-options"></datalist>
@@ -1809,22 +1810,26 @@ document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('clo
     activeRequest = request;
     submit.disabled = true;
     input.value = '';
-    status.textContent = 'Проверяем доступность модели Chrome…';
+    const userMessage = document.createElement('p');
+    userMessage.className = 'message user'; userMessage.textContent = question; messages.append(userMessage);
+    appendReply(quickCareerReply(question));
+    const provisional = messages.lastElementChild;
+    status.textContent = 'Быстрая подсказка по теме. Проверяем, доступен ли ИИ для более подробного ответа…';
 
     try {
       const model = globalThis.LanguageModel;
       if (!model || await model.availability() !== 'available') {
-        if (!request.signal.aborted) { appendReply(quickCareerReply(question)); status.textContent = 'Быстрая подсказка по теме; модель ИИ на этом устройстве не загружена.'; }
+        if (!request.signal.aborted) status.textContent = 'Показана готовая подсказка по теме: модель ИИ на этом устройстве не загружена.';
         return;
       }
       if (request.signal.aborted) return;
       status.textContent = 'Готовим ответ. При первом запуске Chrome может загрузить модель.';
       const reply = await careerReply(model, question, request);
       if (request.signal.aborted) return;
-      appendReply(reply);
+      provisional.textContent = reply;
       status.textContent = '';
     } catch {
-      if (!request.signal.aborted) { appendReply(quickCareerReply(question)); status.textContent = 'Быстрая подсказка по теме: модель ИИ не смогла ответить.'; }
+      if (!request.signal.aborted) status.textContent = 'Показана готовая подсказка по теме: модель ИИ не смогла ответить.';
     } finally {
       if (activeRequest === request) {
         activeRequest = undefined;
@@ -1849,16 +1854,14 @@ document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('clo
 <script>
 (() => {
   const form = document.getElementById('resume-form');
-  const roles = ['Экономист','Экономист-аналитик','Эколог','Электрик','Электромонтер','Электроинженер','Аналитик','Бухгалтер','Менеджер','Маркетолог','Разработчик','Дизайнер','Инженер','Юрист','Продавец-консультант','Специалист по кадрам','Администратор','Учитель','Психолог','Тестировщик'];
+  const roles = 'Агроном,Администратор,Администратор гостиницы,Адвокат,Акушер,Актёр,Аналитик,Аналитик данных,Анестезиолог,Архитектор,Архивариус,Аудитор,Банкир,Бариста,Бармен,Библиотекарь,Бизнес-аналитик,Биолог,Биотехнолог,Бухгалтер,Веб-дизайнер,Веб-разработчик,Ветеринар,Визажист,Водитель,Вожатый,Воспитатель,Врач,Врач-терапевт,Геолог,Гид,Главный бухгалтер,Графический дизайнер,Грузчик,Делопроизводитель,Дизайнер,Дизайнер интерьера,Директор,Диспетчер,Документовед,Журналист,Заведующий складом,Закупщик,Зоотехник,Инженер,Инженер-конструктор,Инженер-программист,Инженер по охране труда,Инженер-технолог,Интернет-маркетолог,Искусствовед,Историк,Кадровый специалист,Кассир,Кладовщик,Клинер,Кондитер,Консультант,Контент-менеджер,Копирайтер,Косметолог,Курьер,Лаборант,Логист,Логопед,Маляр,Маркетолог,Мастер производства,Медицинская сестра,Менеджер,Менеджер по продажам,Менеджер по персоналу,Методист,Механик,Модельер,Монтажник,Музыкант,Налоговый консультант,Нотариус,Оператор,Оператор колл-центра,Оператор ПК,Офис-менеджер,Официант,Охранник,Парикмахер,Педагог,Переводчик,Повар,Помощник бухгалтера,Помощник руководителя,Преподаватель,Программист,Продакт-менеджер,Продавец,Продавец-консультант,Продюсер,Проектировщик,Психолог,Разработчик,Редактор,Рекрутер,Риелтор,Руководитель проекта,Садовник,Сантехник,Сварщик,Секретарь,Системный администратор,Системный аналитик,Слесарь,Социальный работник,Специалист по закупкам,Специалист по кадрам,Специалист по маркетингу,Специалист по продажам,Специалист поддержки,Столяр,Строитель,Тестировщик,Технолог,Товаровед,Токарь,Торговый представитель,Тренер,Уборщик,Учитель,Фармацевт,Фельдшер,Финансовый аналитик,Финансист,Флорист,Фотограф,Химик,Художник,Эколог,Экономист,Экономист-аналитик,Экономист по труду,Экспедитор,Электрик,Электромонтёр,Электроинженер,Энергетик,Юрист,Юрисконсульт,Языковед'.split(',');
   const skills = ['Анализ данных','Excel','SQL','Python','Работа с клиентами','Деловая переписка','Командная работа','Планирование','Бюджетирование','Финансовый анализ','Бухгалтерский учет','1С','Подготовка отчетов','Управление проектами','Английский язык'];
   const experience = ['Учебный проект','Производственная практика','Стажировка','Волонтерство','Анализ данных','Подготовка отчетов','Работа с клиентами','Организация мероприятий','Работа в команде','Исследование рынка'];
-  const list = document.getElementById('resume-role-options');
-  roles.forEach(value => { const option = document.createElement('option'); option.value = value; list.append(option); });
-  for (const [name, options] of [['skills', skills], ['experience', experience]]) {
+  for (const [name, options] of [['role', roles], ['skills', skills], ['experience', experience]]) {
     const field = form.elements[name];
     const box = document.createElement('div');
     box.className = 'resume-suggestions';
-    box.setAttribute('aria-label', 'Варианты для поля ' + (name === 'skills' ? 'навыки' : 'опыт'));
+    box.setAttribute('aria-label', 'Варианты для поля ' + (name === 'role' ? 'должность' : name === 'skills' ? 'навыки' : 'опыт'));
     field.after(box);
     function update() {
       const before = field.value.slice(0, field.selectionStart);
@@ -1866,7 +1869,7 @@ document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('clo
       const term = (match?.[1] || '').trim().toLocaleLowerCase('ru').replace(/ё/g, 'е');
       box.replaceChildren();
       if (!term) return;
-      options.filter(x => x.toLocaleLowerCase('ru').replace(/ё/g, 'е').startsWith(term) && x.toLocaleLowerCase('ru').replace(/ё/g, 'е') !== term).slice(0, 5).forEach(value => {
+      options.filter(x => x.toLocaleLowerCase('ru').replace(/ё/g, 'е').startsWith(term) && x.toLocaleLowerCase('ru').replace(/ё/g, 'е') !== term).slice(0, 12).forEach(value => {
         const button = document.createElement('button'); button.type = 'button'; button.textContent = value;
         button.addEventListener('click', () => {
           const pos = field.selectionStart, prefix = field.value.slice(0, pos);
