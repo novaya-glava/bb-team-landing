@@ -1816,21 +1816,25 @@ document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('clo
     const provisional = messages.lastElementChild;
     status.textContent = 'Быстрая подсказка по теме. Проверяем, доступен ли ИИ для более подробного ответа…';
 
+    let timeoutId;
+    const timeout = new Promise((_, reject) => { timeoutId = setTimeout(() => reject(new Error('Model timeout')), 15000); });
     try {
       const model = globalThis.LanguageModel;
-      if (!model || await model.availability() !== 'available') {
+      if (!model || await Promise.race([model.availability(), timeout]) !== 'available') {
         if (!request.signal.aborted) status.textContent = 'Показана готовая подсказка по теме: модель ИИ на этом устройстве не загружена.';
         return;
       }
       if (request.signal.aborted) return;
       status.textContent = 'Готовим ответ. При первом запуске Chrome может загрузить модель.';
-      const reply = await careerReply(model, question, request);
+      const reply = await Promise.race([careerReply(model, question, request), timeout]);
       if (request.signal.aborted) return;
       provisional.textContent = reply;
       status.textContent = '';
     } catch {
       if (!request.signal.aborted) status.textContent = 'Показана готовая подсказка по теме: модель ИИ не смогла ответить.';
     } finally {
+      clearTimeout(timeoutId);
+      request.abort();
       if (activeRequest === request) {
         activeRequest = undefined;
         submit.disabled = false;
