@@ -1886,6 +1886,22 @@ document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('clo
     }
     field.addEventListener('input', update); field.addEventListener('click', update); field.addEventListener('keyup', update);
   }
+  const courseGoal = document.getElementById('course-goal');
+  const courseSuggestions = document.createElement('div');
+  courseSuggestions.className = 'resume-suggestions course-goal-suggestions';
+  courseSuggestions.setAttribute('aria-label', 'Варианты профессий');
+  courseGoal.after(courseSuggestions);
+  courseGoal.addEventListener('input', () => {
+    const term = courseGoal.value.trim().toLocaleLowerCase('ru').replace(/ё/g, 'е');
+    courseSuggestions.replaceChildren();
+    if (!term) return;
+    roles.filter(role => { const normalized = role.toLocaleLowerCase('ru').replace(/ё/g, 'е'); return normalized.startsWith(term) && normalized !== term; }).slice(0, 12).forEach(role => {
+      const button = document.createElement('button');
+      button.type = 'button'; button.textContent = role;
+      button.addEventListener('click', () => { courseGoal.value = role; courseSuggestions.replaceChildren(); courseGoal.focus(); });
+      courseSuggestions.append(button);
+    });
+  });
 })();
 </script>
 <script>
@@ -2290,4 +2306,5 @@ html[data-theme="dark"] body.igra-site #professional-profile .profile-preview :i
 .igra-site .offer-plan .plan-price,.igra-site .offer-plan .plan-demo{display:block;line-height:1.4}.igra-site .offer-plan .plan-price{font-size:15px;font-weight:700;color:#45336f}.igra-site .offer-plan .plan-demo{font-size:13px;font-weight:600;color:#405b2d;margin-top:5px}[data-theme="dark"] .igra-site .offer-plan .plan-price{color:#e4d8ff!important}[data-theme="dark"] .igra-site .offer-plan .plan-demo{color:#d9f68c!important}
 #retrain-courses{scroll-margin-top:var(--sticky-nav-offset,170px)}.igra-site .course-partners-empty{padding:22px 24px;border:1px solid #d8d0e7;border-radius:18px;background:#f2eefb}.igra-site .course-partners-empty h4{margin:0 0 8px;font-size:19px}.igra-site .course-partners-empty p{margin:0}.igra-site .course-partners ul{padding-left:20px}.igra-site .course-partners li{margin:0 0 10px}[data-theme="dark"] .igra-site .course-partners-empty{background:#30264b;border-color:#625674}[data-theme="dark"] .igra-site .course-partners-empty :is(h4,p){color:#f0e9fa}
 .igra-site .course-goal-label{display:block;font-weight:600;margin-bottom:8px}.igra-site .course-goal-input{display:block;width:100%;max-width:520px;min-height:48px;padding:11px 14px;margin-bottom:18px;border:1px solid #9a8cad;border-radius:12px;background:#fff;color:#29243c;font:inherit}[data-theme="dark"] .igra-site .course-goal-input{background:#211936;color:#faf5ff;border-color:#a99cbe}
+.course-goal-suggestions:not(:empty){margin:-8px 0 18px}
 </style></body></html>
