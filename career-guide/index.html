@@ -1152,7 +1152,7 @@ body::before { display: none; }
       </g>
       <g transform="translate(8 0)">
         <g class="rights-otter-gesture">
-          <path fill="#5743a2" stroke="#beb2f4" stroke-width="2" stroke-linejoin="round" d="M292 126c4 15-1 29-11 32-8 3-14-2-19-10l-10-13-6-5c-3-2-3-5-1-7 2-2 5-1 7 0l5 3c4-2 8 0 11 4l8 8c5-1 8-4 9-9"/>
+          <path fill="#5743a2" stroke="#beb2f4" stroke-width="2" stroke-linejoin="round" d="M291 124c3 9 3 19-2 25-4 6-11 7-17 3-4-2-7-7-10-11l-8-10c-2-3-2-6 0-8 2-2 5-1 7 1l7 7c1-3 4-4 7-2 3 1 5 4 8 7 3-2 5-6 5-10 0-2 2-3 3-2Z"/>
           <path fill="none" stroke="#b9a9f1" stroke-width="1.9" stroke-linecap="round" d="m257 128-2 4m7-1-2 4"/>
         </g>
       </g>
@@ -2297,7 +2297,7 @@ trigger.addEventListener('keydown',e=>{
 });
 wrap.addEventListener('pointerenter',e=>{if(e.pointerType==='mouse')open(item)});
 wrap.addEventListener('pointerleave',e=>{if(e.pointerType==='mouse')closeTimer=setTimeout(close,220)});
-wrap.addEventListener('focusin',e=>{if(!group.overview||panel.contains(e.target))open(item)});
+wrap.addEventListener('focusin',e=>{if(panel.contains(e.target))open(item)});
 wrap.append(trigger,panel);menu.append(wrap)});
 nav.insertBefore(menu,nav.querySelector('.nav-actions'));
 document.addEventListener('pointerdown',e=>{if(!menu.contains(e.target))close()});document.addEventListener('keydown',e=>{if(e.key==='Escape'&&opened){const button=opened.trigger;close();button.focus()}});
