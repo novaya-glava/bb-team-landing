@@ -2014,7 +2014,8 @@ document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('clo
   function refresh() {
     const { consultant, advanced } = access();
     const used = trialUsed();
-    form.hidden = used && !consultant;
+    form.hidden = false;
+    generateButton.disabled = used && !consultant;
     plans.hidden = !used && result.hidden && !consultant;
     ats.hidden = !advanced;
     dialog.querySelector('.chat-header p').textContent = consultant
@@ -2103,7 +2104,7 @@ document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('clo
 
   form.addEventListener('submit', async event => {
     event.preventDefault();
-    if (running || (trialUsed() && !access().consultant)) {
+    if (running || (event.submitter !== templateButton && trialUsed() && !access().consultant)) {
       refresh();
       return;
     }
@@ -2143,9 +2144,9 @@ document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('clo
       status.textContent = 'ИИ не смог подготовить черновик. Попробуйте ещё раз или соберите его по шаблону.';
       templateButton.hidden = false;
     } finally {
-      generateButton.disabled = false;
-      templateButton.disabled = false;
       running = false;
+      templateButton.disabled = false;
+      refresh();
     }
   });
 
