@@ -1222,6 +1222,7 @@ body::before { display: none; }
       <a href="site-about.html">О проекте</a>
       <a id="site-documentation" href="site-docs.html">Правовые документы</a>
       <a href="site-feedback.html">Вопросы и предложения</a>
+      <a href="#reviews" id="open-reviews">Отзывы</a>
       <a href="site-sources.html">Источники материалов</a>
     </nav>
   </div>
@@ -1561,6 +1562,8 @@ document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('clo
   const intro = messages.firstElementChild;
   let activeRequest;
   let conversation = [];
+  let resumeForRating = "";
+  let waitingForResume = false;
 
   const safeReplies = {
     privacy: 'Для карьерного совета достаточно описать рабочую ситуацию или навык. Личные сведения и данные других людей здесь не нужны.',
@@ -1850,10 +1853,39 @@ document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('clo
     return 'Я могу помочь с поиском работы, резюме, собеседованием и адаптацией. Уточните карьерную тему и опишите ситуацию без личных данных.';
   }
 
+  function rateResume(text) {
+    const checks = [
+      ['Целевая должность', /(?:должност|позици|професси|цель|специалист|менеджер|аналитик|разработчик)/iu, 'Укажите желаемую должность.'],
+      ['Навыки', /(?:навык|умени|владени|инструмент|знани)/iu, 'Добавьте навыки и инструменты, которыми владеете.'],
+      ['Опыт или проекты', /(?:опыт|проект|стажиров|работал|практик)/iu, 'Опишите опыт, учебный проект или практику.'],
+      ['Образование', /(?:образован|университет|вуз|колледж|обучени|курс|диплом)/iu, 'Укажите образование или обучение.'],
+      ['Примеры результата', /(?:результат|достижен|создал|разработал|подготовил|составил|организовал|улучшил|выполнил)/iu, 'Добавьте подтверждаемый пример своих действий и результата.']
+    ];
+    const found = checks.filter(([,pattern]) => pattern.test(text));
+    const missing = checks.filter(([,pattern]) => !pattern.test(text));
+    const card = document.createElement('div'); card.className = 'message assistant resume-rating';
+    const heading = document.createElement('strong'); heading.textContent = 'Предварительная оценка структуры: ' + found.length + ' из 5'; card.append(heading);
+    const shells = document.createElement('div'); shells.className = 'rating-shells'; shells.setAttribute('role', 'img'); shells.setAttribute('aria-label', found.length + ' из 5 ракушек');
+    for (let i=0;i<5;i++) { const shell=document.createElementNS('http://www.w3.org/2000/svg','svg'); shell.setAttribute('viewBox','55 39 38 36'); shell.setAttribute('aria-hidden','true'); shell.classList.toggle('filled',i<found.length); const shape=document.createElementNS('http://www.w3.org/2000/svg','path'); shape.setAttribute('d','M69 69 59 61c-4-3-4-7-1-10 0-3 2-5 5-5 1-3 4-4 7-3 2-3 6-3 9-1 3-1 6 1 7 4 3 0 5 3 4 6 3 3 2 7-2 10l-11 7-1 3h-6Z'); shell.append(shape); const lines=document.createElementNS('http://www.w3.org/2000/svg','path'); lines.setAttribute('d','M71 66Q66 59 60 55m13 11Q70 56 66 49m8 16 1-19m1 20q3-10 7-17m-6 18q5-7 11-12'); lines.setAttribute('class','shell-lines'); shell.append(lines); shells.append(shell); } card.append(shells);
+    const info=document.createElement('p'); info.textContent='Проверка ищет пять признаков в тексте и может ошибаться. Она не оценивает человека, качество опыта или вероятность трудоустройства.'; card.append(info);
+    const detail=document.createElement('p'); detail.textContent=missing.length ? 'Что проверить: '+missing.map(item=>item[2]).join(' ') : 'Все пять признаков найдены. Проверьте точность фактов и соответствие вакансии.'; card.append(detail);
+    messages.append(card); messages.scrollTop=messages.scrollHeight;
+  }
+
   form.addEventListener('submit', async event => {
     event.preventDefault();
     const question = input.value.trim();
     if (!question || activeRequest) return;
+    const asksRating = /(?:оцен|оценк|сколько|рейтинг|балл|ракуш|звезд|звёзд)/iu.test(question) && /резюме|cv|его|мое|моё|текст/iu.test(question);
+    if (waitingForResume || asksRating) {
+      const candidate = waitingForResume ? question : (question.length >= 120 ? question : resumeForRating);
+      const userMessage = document.createElement('p'); userMessage.className='message user'; userMessage.textContent=question; messages.append(userMessage); input.value='';
+      if (candidate.length < 120) { waitingForResume=true; appendReply('Пришлите текст резюме без имени, контактов и других личных данных — оценю его структуру по пяти критериям.'); }
+      else { waitingForResume=false; resumeForRating=candidate; rateResume(candidate); }
+      status.textContent=''; return;
+    }
+    if (question.length >= 120 && /резюме|навык|образован|опыт|проект/iu.test(question)) resumeForRating=question;
+
     const request = new AbortController();
     activeRequest = request;
     submit.disabled = true;
@@ -1904,6 +1936,7 @@ document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('clo
     status.textContent = '';
     messages.replaceChildren(intro);
     conversation = [];
+    resumeForRating = ""; waitingForResume = false;
   });
 })();
 </script>
@@ -2424,7 +2457,7 @@ html[data-theme="dark"] body.igra-site #professional-profile .profile-preview :i
 .privacy-action-note{font-size:13px;line-height:1.45;color:inherit;margin:4px 0}.privacy-action-note a,.support-panel a{text-decoration:underline}
 .support-launcher{position:fixed;bottom:max(18px,env(safe-area-inset-bottom));left:max(18px,env(safe-area-inset-left));z-index:90;width:64px;height:64px;border:2px solid #eee9ff;border-radius:50%;background:#392d67;box-shadow:0 7px 22px #211a3b55;display:grid;place-items:center;cursor:pointer;padding:5px}.support-launcher:focus-visible,.support-panel button:focus-visible{outline:3px solid #9b83f3;outline-offset:3px}.support-launcher svg{width:52px;height:52px}.support-panel{position:fixed;z-index:91;left:max(18px,env(safe-area-inset-left));bottom:calc(94px + env(safe-area-inset-bottom));width:min(340px,calc(100vw - 36px));max-height:calc(100dvh - 120px);overflow:auto;padding:20px;border:1px solid #c9bee6;border-radius:20px;background:#faf8ff;color:#29213e;box-shadow:0 14px 42px #211a3b44}.support-panel[hidden]{display:none}.support-panel h2{font-size:21px;margin:0 32px 8px 0}.support-panel p{font-size:14px;line-height:1.4;margin:0 0 12px}.support-panel textarea{box-sizing:border-box;width:100%;resize:vertical;min-height:100px;padding:10px;border:1px solid #a99bc8;border-radius:10px;font:inherit;color:#29213e;background:white}.support-panel .support-send{margin-top:10px;border:0;border-radius:20px;background:#dffa60;color:#29213e;padding:10px 16px;font-weight:700;cursor:pointer}.support-close{position:absolute;right:14px;top:12px;border:0;background:transparent;font-size:25px;cursor:pointer;color:inherit}[data-theme="dark"] .support-panel{background:#29213e;color:#f7f3ff;border-color:#7d6ba4}[data-theme="dark"] .support-panel textarea{background:#1e1731;color:#fff;border-color:#9c8bb8}body:has(dialog[open]) .support-launcher,body:has(dialog[open]) .support-panel{visibility:hidden}
 </style>
-<button class="support-launcher" id="support-open" type="button" aria-label="Открыть службу поддержки" aria-controls="support-panel" aria-expanded="false"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="19" cy="20" r="7" fill="#8069c9"/><circle cx="45" cy="20" r="7" fill="#8069c9"/><circle cx="19" cy="20" r="3.5" fill="#c9bbf6"/><circle cx="45" cy="20" r="3.5" fill="#c9bbf6"/><ellipse cx="32" cy="34" rx="19" ry="18" fill="#8e7de1"/><ellipse cx="32" cy="38" rx="14" ry="10" fill="#d9cef8"/><ellipse cx="32" cy="36" rx="12.5" ry="8" fill="#f4efff"/><circle cx="26" cy="30" r="2" fill="#29213e"/><circle cx="38" cy="30" r="2" fill="#29213e"/><path d="M29 35q3-3 6 0-1 3-3 3t-3-3m3 3q-2 4-5 2m5-2q2 4 5 2" fill="#29213e" stroke="#29213e" stroke-width="1.3" stroke-linecap="round"/><path d="M25 36l-8-2m8 4-9 1m23-3 8-2m-8 4 9 1" fill="none" stroke="#56447a" stroke-width="1.2" stroke-linecap="round"/><path d="M11 32a21 21 0 0 1 42 0" fill="none" stroke="#dffa60" stroke-width="5" stroke-linecap="round"/><rect x="8" y="29" width="8" height="12" rx="4" fill="#dffa60"/><rect x="48" y="29" width="8" height="12" rx="4" fill="#dffa60"/><path d="M51 39q-1 9-11 9" fill="none" stroke="#dffa60" stroke-width="2.5" stroke-linecap="round"/><circle cx="39" cy="48" r="2" fill="#dffa60"/></svg></button>
+<button class="support-launcher" id="support-open" type="button" aria-label="Открыть службу поддержки" aria-controls="support-panel" aria-expanded="false"><svg viewBox="0 0 64 64" aria-hidden="true"><ellipse cx="32" cy="34" rx="19" ry="18" fill="#8e7de1"/><ellipse cx="32" cy="38" rx="14" ry="10" fill="#d9cef8"/><ellipse cx="32" cy="34" rx="16" ry="12" fill="#f4efff"/><circle cx="26" cy="30" r="2" fill="#29213e"/><circle cx="38" cy="30" r="2" fill="#29213e"/><path d="M29 35q3-3 6 0-1 3-3 3t-3-3m3 3q-2 4-5 2m5-2q2 4 5 2" fill="#29213e" stroke="#29213e" stroke-width="1.3" stroke-linecap="round"/><path d="M25 36l-8-2m8 4-9 1m23-3 8-2m-8 4 9 1" fill="none" stroke="#56447a" stroke-width="1.2" stroke-linecap="round"/><path d="M11 32a21 21 0 0 1 42 0" fill="none" stroke="#dffa60" stroke-width="5" stroke-linecap="round"/><circle cx="19" cy="20" r="7" fill="#8069c9"/><circle cx="45" cy="20" r="7" fill="#8069c9"/><circle cx="19" cy="20" r="3.5" fill="#c9bbf6"/><circle cx="45" cy="20" r="3.5" fill="#c9bbf6"/><rect x="8" y="29" width="8" height="12" rx="4" fill="#dffa60"/><rect x="48" y="29" width="8" height="12" rx="4" fill="#dffa60"/><path d="M51 39q-1 9-11 9" fill="none" stroke="#dffa60" stroke-width="2.5" stroke-linecap="round"/><circle cx="39" cy="48" r="2" fill="#dffa60"/></svg></button>
 <section id="support-panel" class="support-panel" aria-labelledby="support-title" hidden><button class="support-close" type="button" aria-label="Закрыть поддержку">×</button><h2 id="support-title">Служба поддержки</h2><p>Задайте свой вопрос. Мы подготовим письмо в вашем почтовом приложении — отправьте его, чтобы обратиться в поддержку.</p><form id="support-question-form"><label for="support-question">Ваш вопрос</label><textarea id="support-question" name="question" required maxlength="3000" placeholder="Напишите, чем мы можем помочь"></textarea><p>Не указывайте пароли и другую конфиденциальную информацию. Подробнее — в <a href="privacy-policy-draft.html">политике обработки персональных данных</a>.</p><button class="support-send" type="submit">Отправить</button></form></section>
 <script>(()=>{const trigger=document.querySelector('#support-open'),panel=document.querySelector('#support-panel'),close=panel.querySelector('.support-close'),form=document.querySelector('#support-question-form');function setOpen(open){panel.hidden=!open;trigger.setAttribute('aria-expanded',String(open));if(open)panel.querySelector('textarea').focus();else trigger.focus()}trigger.addEventListener('click',()=>setOpen(panel.hidden));close.addEventListener('click',()=>setOpen(false));panel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();setOpen(false)}});form.addEventListener('submit',e=>{e.preventDefault();const question=form.elements.question.value.trim();if(!question){form.elements.question.focus();return}location.href='mailto:yanashedovskaya@gmail.com,mozhaeva.veronika.s@gmail.com?subject='+encodeURIComponent('Новая глава — вопрос в поддержку')+'&body='+encodeURIComponent(question)})})();</script>
 </body></html>
@@ -2439,3 +2472,11 @@ html[data-theme="dark"] body.igra-site #professional-profile .profile-preview :i
 .igra-site .igra-feed{gap:24px}.igra-site .intro .cards{gap:14px}
 @media(max-width:750px){.igra-site :is(.intro,.guide){padding-top:22px;padding-bottom:20px}.igra-site .igra-feed :is(.content-head,.guide-section){margin-bottom:14px;padding:18px}.igra-site .intro .cards{gap:12px}}
 </style>
+
+<style>
+.igra-site header .nav-actions .ai-button:is(:hover,:focus-visible){color:#dffa60!important;background:#433669!important}
+.rating-shells{display:flex;gap:5px;margin:8px 0}.rating-shells svg{width:30px;height:30px;fill:#e1dbea;stroke:#655781;stroke-width:2;stroke-linejoin:round}.rating-shells svg.filled{fill:#dffa60}.rating-shells .shell-lines{fill:none;stroke:#49385b;stroke-width:1.35;stroke-linecap:round}.resume-rating p{margin:8px 0 0}
+.reviews-dialog{width:min(520px,calc(100vw - 30px));border:1px solid #bdb1df;border-radius:16px;padding:24px;background:#fff;color:#29243c}.reviews-dialog::backdrop{background:#1b1436a8}.reviews-dialog label{display:block;font-weight:650}.reviews-dialog textarea{display:block;width:100%;min-height:130px;margin:8px 0 14px;padding:12px;border:1px solid #9a8cad;border-radius:10px;font:inherit;resize:vertical}.reviews-dialog .review-actions{display:flex;gap:10px;flex-wrap:wrap}.reviews-dialog button{border-radius:10px;padding:10px 16px;font:inherit;cursor:pointer}.reviews-dialog .review-submit{background:#dffa60;color:#20203b;border:0}.reviews-dialog .review-close{background:transparent;color:inherit;border:1px solid #9a8cad}[data-theme="dark"] .reviews-dialog{background:#211936;color:#faf5ff}[data-theme="dark"] .reviews-dialog textarea{background:#151027;color:#faf5ff}
+</style>
+<dialog class="reviews-dialog" id="reviews-dialog" aria-labelledby="reviews-title"><h2 id="reviews-title">Отзывы</h2><p>Расскажите, что вам понравилось и что можно улучшить. Откроется письмо, которое нужно отправить из почтового приложения.</p><form id="reviews-form"><label for="review-text">Ваш отзыв</label><textarea id="review-text" required maxlength="3000" placeholder="Поделитесь впечатлением"></textarea><div class="review-actions"><button class="review-submit" type="submit">Подготовить отзыв</button><button class="review-close" type="button">Закрыть</button></div></form></dialog>
+<script>(()=>{const dialog=document.getElementById('reviews-dialog'),form=document.getElementById('reviews-form');document.getElementById('open-reviews').addEventListener('click',e=>{e.preventDefault();dialog.showModal()});dialog.querySelector('.review-close').addEventListener('click',()=>dialog.close());form.addEventListener('submit',e=>{e.preventDefault();const value=form.querySelector('textarea').value.trim();if(!value)return;location.href='mailto:yanashedovskaya@gmail.com,mozhaeva.veronika.s@gmail.com?subject='+encodeURIComponent('Новая глава — отзыв')+'&body='+encodeURIComponent(value)})})();</script>
